@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 import ca.uwo.tools.Counter;
 
-public class NodeLink implements INodeLink{
+public class ParallelNodeLink implements INodeLink{
 	List<String> children = new ArrayList<>();
 	List<INodeLink> needToBeExplored = new ArrayList<>();
 	String stringUrl;
@@ -23,7 +23,7 @@ public class NodeLink implements INodeLink{
 	Map<String, INodeLink> existing;
 	HttpURLConnection urlConnection;
 
-	public NodeLink(String url, Counter counter, Map<String, INodeLink> existing) {
+	public ParallelNodeLink(String url, Counter counter, Map<String, INodeLink> existing) {
 		try {
 			//TODO Check how it can be done for every node before initializing it
 			if (!url.startsWith("http")) {
@@ -60,7 +60,13 @@ public class NodeLink implements INodeLink{
 	}
 	
 	public CompletableFuture<Void> get() {
-		return CompletableFuture.runAsync(() -> findLinks());
+		List<INodeLink> links = findLinks();
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
+		
+		for (INodeLink link : links) {
+			futures.add(link.get());
+		}
+		return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
 	}
 
 	public List<INodeLink> findLinks() {
@@ -78,7 +84,7 @@ public class NodeLink implements INodeLink{
 			String s, childLink;
 			Pattern linkOnly;
 			Matcher linkMatcher;
-			NodeLink child;
+			ParallelNodeLink child;
 
 			// TODO Check for 400 response codes
 
@@ -91,7 +97,7 @@ public class NodeLink implements INodeLink{
 
 				// If we haven't reached the target number of nodes, add the redirection node
 				if (!counter.reachedTarget()) {
-					child = new NodeLink(childLink, counter, existing);
+					child = new ParallelNodeLink(childLink, counter, existing);
 					children.add(childLink);
 					needToBeExplored.add(child);
 					existing.put(childLink, child);
@@ -130,7 +136,7 @@ public class NodeLink implements INodeLink{
 								break;
 							}
 							// Otherwise, add new node for link
-							child = new NodeLink(childLink, counter, existing);
+							child = new ParallelNodeLink(childLink, counter, existing);
 							children.add(childLink);
 							needToBeExplored.add(child);
 							existing.put(childLink, child);
@@ -205,5 +211,4 @@ public class NodeLink implements INodeLink{
 		}
 		return false;
 	}
-
 }

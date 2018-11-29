@@ -7,22 +7,23 @@ import java.util.Map;
 
 import ca.uwo.tools.Counter;
 import ca.uwo.tools.SimpleCounter;
+import ca.uwo.webCrawler.nodes.INodeLink;
 import ca.uwo.webCrawler.nodes.NodeLink;
 
 public class WebCrawler {
-	Map<String, NodeLink> existing = new HashMap<String, NodeLink>();
+	Map<String, INodeLink> existing = new HashMap<String, INodeLink>();
 	NodeLink root;
 
 	public static void main(String[] args) {
-		String initialURL = "http://www.lib.uwo.ca";
+		String initialURL = "https://www.uwo.ca";
 		WebCrawler crawler = new WebCrawler();
-		crawler.run(initialURL);
+		crawler.crawl(initialURL, 50);
 
 	}
 
-	public void run(String initialURL) {
-		List<NodeLink> nodesToVisit = new ArrayList<NodeLink>();
-		Counter counter = new SimpleCounter(20);
+	public void crawl(String initialURL, int numberOfNodes) {
+		List<INodeLink> nodesToVisit = new ArrayList<INodeLink>();
+		Counter counter = new SimpleCounter(numberOfNodes);
 
 		// Add root to hashmap of existing nodes
 		// and list of nodes that need visiting
@@ -31,15 +32,14 @@ public class WebCrawler {
 		nodesToVisit.add(root);
 
 		while (!nodesToVisit.isEmpty()) {
-			NodeLink temp = nodesToVisit.remove(0);
+			INodeLink temp = nodesToVisit.remove(0);
 
-			System.out.println("Running: " + temp.getStringUrl());
-			temp.findLinks();
-			nodesToVisit.addAll(temp.getNeedToBeExplored());
+			//System.out.println("Running: " + temp.getStringUrl());	
+			nodesToVisit.addAll(temp.findLinks());
 		}
 	}
 
-	public Map<String, NodeLink> getExisting() {
+	public Map<String, INodeLink> getExisting() {
 		return existing;
 	}
 
