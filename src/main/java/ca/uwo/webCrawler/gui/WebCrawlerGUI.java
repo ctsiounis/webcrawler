@@ -4,6 +4,10 @@ import java.awt.BorderLayout;
 import java.awt.HeadlessException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.text.NumberFormat;
 import java.util.Map;
 
@@ -19,11 +23,13 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.text.NumberFormatter;
 
+import com.sun.xml.internal.ws.util.NoCloseOutputStream;
+
 import ca.uwo.parallelWebCrawler.ParallelWebCrawler;
 import ca.uwo.webCrawler.WebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
 
-public class WebCrawlerGUI extends JFrame implements ActionListener {
+public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener {
 	/**
 	 * 
 	 */
@@ -32,6 +38,7 @@ public class WebCrawlerGUI extends JFrame implements ActionListener {
 	JFormattedTextField numberOfNodes;
 	JRadioButton simpleCrawler, parallelCrawler;
 	JPanel graphPanel;
+	JLabel status;
 	
 
 	public static void main(String[] args) {
@@ -70,8 +77,12 @@ public class WebCrawlerGUI extends JFrame implements ActionListener {
 	    
 		JLabel websiteLabel = new JLabel("Insert website to start crawling: ");
 		website = new JTextField(25);
+		website.addKeyListener(this);
 		JButton runCrawl = new JButton("Run");
-		runCrawl.addActionListener(this);
+		runCrawl.addMouseListener(this);
+		runCrawl.addKeyListener(this);
+		
+		status = new JLabel("Waiting");
 		
 		controlPanel.add(nodesLabel);
 		controlPanel.add(numberOfNodes);
@@ -81,19 +92,23 @@ public class WebCrawlerGUI extends JFrame implements ActionListener {
 		controlPanel.add(websiteLabel);
 		controlPanel.add(website);
 		controlPanel.add(runCrawl);
+		controlPanel.add(status);
 		
 		getContentPane().add(scrollPane, BorderLayout.CENTER);
 		getContentPane().add(controlPanel, BorderLayout.PAGE_START);
 	}
 
-	@Override
-	public void actionPerformed(ActionEvent e) {
-		
+	private void pressed(){
+		status.setText("Running...");
+	}
+	
+	private void released() {
 		String websiteURL = website.getText();
 		int nodesToExplore = Integer.parseInt(numberOfNodes.getText());
 		
 		//INodeLink root = null;
 		Map<String, INodeLink> nodes = null;
+		
 		if (simpleCrawler.isSelected()) {
 			long startTime = System.nanoTime();
 			
@@ -122,6 +137,55 @@ public class WebCrawlerGUI extends JFrame implements ActionListener {
 		graphPanel.add(graphCreator.getGraphComponent());
 		revalidate();
 		repaint();
+		
+		status.setText("Done!");
+	}
+	
+	@Override
+	public void mouseClicked(MouseEvent e) {
+		
+	}
+
+	@Override
+	public void mousePressed(MouseEvent e) {
+		pressed();
+	}
+
+	@Override
+	public void mouseReleased(MouseEvent e) {
+		released();
+	}
+
+	@Override
+	public void mouseEntered(MouseEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void mouseExited(MouseEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void keyTyped(KeyEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void keyPressed(KeyEvent e) {
+		if(e.getKeyCode() == KeyEvent.VK_ENTER){
+            pressed();
+        }
+	}
+
+	@Override
+	public void keyReleased(KeyEvent e) {
+		if(e.getKeyCode() == KeyEvent.VK_ENTER){
+            released();
+        }
 	}
 
 }
