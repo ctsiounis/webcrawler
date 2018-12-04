@@ -9,12 +9,13 @@ import java.util.concurrent.ExecutionException;
 
 import ca.uwo.tools.AtomicCounter;
 import ca.uwo.tools.Counter;
+import ca.uwo.tools.UrlChecker;
 import ca.uwo.webCrawler.nodes.INodeLink;
 import ca.uwo.webCrawler.nodes.ParallelNodeLink;
 
 public class ParallelWebCrawler {
 
-	Map<String, INodeLink> existing = new ConcurrentHashMap<String, INodeLink>();
+	UrlChecker checker = new UrlChecker();
 	ParallelNodeLink root;
 	List<CompletableFuture<List<ParallelNodeLink>>> futures = new ArrayList<>();
 
@@ -31,8 +32,8 @@ public class ParallelWebCrawler {
 
 		// Add root to hashmap of existing nodes
 		// and list of nodes that need visiting
-		root = new ParallelNodeLink(initialURL, counter, existing);
-		existing.put(root.getStringUrl(), root);
+		root = new ParallelNodeLink(initialURL, counter, checker);
+		checker.addNodeLink(root.getStringUrl(), root);
 		try {
 			root.get().get();
 		} catch (InterruptedException | ExecutionException e) {
@@ -93,7 +94,7 @@ public class ParallelWebCrawler {
 	}*/
 
 	public Map<String, INodeLink> getExisting() {
-		return existing;
+		return checker.getExisting();
 	}
 
 	public ParallelNodeLink getRoot() {

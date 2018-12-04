@@ -11,7 +11,12 @@ public class AtomicCounter implements Counter{
 	}
 	
 	public boolean reachedTarget() {
-		return counter.getAndAdd(1)>target;
+		return counter.addAndGet(1)>target;
+	}
+
+	@Override
+	public void reduce() {
+		counter.decrementAndGet();
 	}
 
 }

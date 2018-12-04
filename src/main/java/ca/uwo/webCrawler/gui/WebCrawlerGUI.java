@@ -11,6 +11,8 @@ import java.awt.event.MouseListener;
 import java.text.NumberFormat;
 import java.util.Map;
 
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFormattedTextField;
@@ -19,6 +21,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.text.NumberFormatter;
@@ -26,6 +30,7 @@ import javax.swing.text.NumberFormatter;
 import com.sun.xml.internal.ws.util.NoCloseOutputStream;
 
 import ca.uwo.parallelWebCrawler.ParallelWebCrawler;
+import ca.uwo.tools.UrlChecker;
 import ca.uwo.webCrawler.WebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
 
@@ -39,6 +44,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 	JRadioButton simpleCrawler, parallelCrawler;
 	JPanel graphPanel;
 	JLabel status;
+	JTextArea stats;
 	
 
 	public static void main(String[] args) {
@@ -53,8 +59,11 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		
 		getContentPane().setLayout(new BorderLayout());
 		
+		// Graph Panel
 		graphPanel = new JPanel();
-		JScrollPane scrollPane = new JScrollPane(graphPanel);
+		JScrollPane graphScrollPane = new JScrollPane(graphPanel);
+		
+		// Control Panel
 		JPanel controlPanel = new JPanel();
 		
 		JLabel nodesLabel = new JLabel("Insert number of nodes to check: ");
@@ -66,9 +75,9 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 	    formatter.setAllowsInvalid(false);
 	    formatter.setCommitsOnValidEdit(true);
 	    numberOfNodes = new JFormattedTextField(formatter);
-	    numberOfNodes.setColumns(10);
+	    numberOfNodes.setColumns(5);
 	    
-	    JLabel chooseCrawlerLabel = new JLabel("Choose type of crawler");
+	    JLabel chooseCrawlerLabel = new JLabel("Choose type of crawler: ");
 	    simpleCrawler = new JRadioButton("Simple Crawler", true);
 	    parallelCrawler = new JRadioButton("ParallelCrawler", false);
 	    ButtonGroup crawlerGroup = new ButtonGroup();
@@ -76,7 +85,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 	    crawlerGroup.add(parallelCrawler);
 	    
 		JLabel websiteLabel = new JLabel("Insert website to start crawling: ");
-		website = new JTextField(25);
+		website = new JTextField(20);
 		website.addKeyListener(this);
 		JButton runCrawl = new JButton("Run");
 		runCrawl.addMouseListener(this);
@@ -84,18 +93,35 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		
 		status = new JLabel("Waiting");
 		
+		controlPanel.setLayout(new BoxLayout(controlPanel,
+                BoxLayout.LINE_AXIS));
 		controlPanel.add(nodesLabel);
 		controlPanel.add(numberOfNodes);
+		controlPanel.add(Box.createHorizontalStrut(5));
+		controlPanel.add(new JSeparator(SwingConstants.VERTICAL));
+		controlPanel.add(Box.createHorizontalStrut(5));
 		controlPanel.add(chooseCrawlerLabel);
 		controlPanel.add(simpleCrawler);
 		controlPanel.add(parallelCrawler);
+		controlPanel.add(Box.createHorizontalStrut(5));
+		controlPanel.add(new JSeparator(SwingConstants.VERTICAL));
+		controlPanel.add(Box.createHorizontalStrut(5));
 		controlPanel.add(websiteLabel);
 		controlPanel.add(website);
 		controlPanel.add(runCrawl);
 		controlPanel.add(status);
 		
-		getContentPane().add(scrollPane, BorderLayout.CENTER);
+		//Stats Panel
+		JPanel statsPanel = new JPanel();
+		JScrollPane statsScrollPanel= new JScrollPane(statsPanel);
+		
+		stats = new JTextArea(100, 25);
+		stats.setEditable(false);
+		statsPanel.add(stats);
+		
+		getContentPane().add(graphScrollPane, BorderLayout.CENTER);
 		getContentPane().add(controlPanel, BorderLayout.PAGE_START);
+		getContentPane().add(statsScrollPanel, BorderLayout.EAST);
 	}
 
 	private void pressed(){
@@ -133,8 +159,20 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			System.out.println("Parallel Crawler time: " + duration);
 		}
 		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes);
+		
 		graphPanel.removeAll();
 		graphPanel.add(graphCreator.getGraphComponent());
+		
+		int avgIncoming = graphCreator.getAverageIncoming();
+		int avgOutgoing = graphCreator.getAverageOutgoing();
+		double avgDistance = graphCreator.getAvgDistance();
+		double diameter = graphCreator.getDiameter();
+		stats.setText("");
+		stats.append("Average number of incoming edges: " + avgIncoming + "\n");
+		stats.append("Average number of outgoing edges: " + avgOutgoing + "\n");
+		stats.append("Average distance between vertices: " + String.format("%.2f", avgDistance) + "\n");
+		stats.append("Graph's diameter: " + String.format("%.2f", diameter) + "\n");
+
 		revalidate();
 		repaint();
 		

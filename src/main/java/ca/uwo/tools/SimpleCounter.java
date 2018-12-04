@@ -15,4 +15,10 @@ public class SimpleCounter implements Counter {
 		return counter > target;
 	}
 
+
+	@Override
+	public void reduce() {
+		counter--;
+	}
+
 }
