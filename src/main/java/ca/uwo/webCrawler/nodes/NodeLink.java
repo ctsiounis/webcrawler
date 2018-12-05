@@ -1,6 +1,7 @@
 package ca.uwo.webCrawler.nodes;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -9,12 +10,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import javax.net.ssl.SSLHandshakeException;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import ca.uwo.tools.Counter;
 
-public class NodeLink implements INodeLink{
+public class NodeLink implements INodeLink {
 	List<String> children = new ArrayList<>();
 	List<INodeLink> needToBeExplored = new ArrayList<>();
 	String stringUrl;
@@ -25,7 +31,7 @@ public class NodeLink implements INodeLink{
 
 	public NodeLink(String url, Counter counter, Map<String, INodeLink> existing) {
 		try {
-			//TODO Check how it can be done for every node before initializing it
+			// TODO Check how it can be done for every node before initializing it
 			if (!url.startsWith("http")) {
 				if (!url.startsWith("www")) {
 					url = "www." + url;
@@ -58,7 +64,7 @@ public class NodeLink implements INodeLink{
 	public URL getUrl() {
 		return url;
 	}
-	
+
 	public CompletableFuture<Void> get() {
 		return CompletableFuture.runAsync(() -> findLinks());
 	}
@@ -70,22 +76,33 @@ public class NodeLink implements INodeLink{
 			urlConnection.setRequestMethod("GET");
 			urlConnection.connect();
 			int response = urlConnection.getResponseCode();
-			//System.out.println(response);
+			// System.out.println(response);
 
 			// Create stream to get data from website
 			bis = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
 
 			String s, childLink;
-			Pattern linkOnly;
-			Matcher linkMatcher;
 			NodeLink child;
 
-			// TODO Check for 400 response codes
+			// Check for response code and log
+			if ((response / 100) == 1) {
+				counter.increase100();
+			} else if ((response / 100) == 2) {
+				counter.increase200();
+			} else if ((response / 100) == 3) {
+				counter.increase300();
+			} else if ((response / 100) == 4) {
+				counter.increase400();
+				return needToBeExplored;
+			} else {
+				counter.increase500();
+				return needToBeExplored;
+			}
 
 			// Check to see if we have a redirection response
 			// If we do find the redirection from headers
 			if ((response / 3) == 100) {
-				//System.out.println("Redirection needed!!!");
+				// System.out.println("Redirection needed!!!");
 				Map<String, List<String>> headers = urlConnection.getHeaderFields();
 				childLink = makeAbsolute(headers.get("Location").get(0));
 
@@ -95,53 +112,64 @@ public class NodeLink implements INodeLink{
 					children.add(childLink);
 					needToBeExplored.add(child);
 					existing.put(childLink, child);
-					//System.out.println(childLink);
+					// System.out.println(childLink);
 				}
 				return needToBeExplored;
-			} else { // If not create regular expression to find links
-				linkOnly = Pattern.compile("(?<=<a\\b[^>]{0,30}href=\")([^>\\s]*?)(?=\".+>)");
 			}
 
-			// Start reading from the website
+			StringBuilder page = new StringBuilder();
+			// Read the website
 			while ((s = bis.readLine()) != null) {
 				// System.out.println(s);
+				page.append(s + "\n");
+			}
 
-				// Find references to other websites
-				linkMatcher = linkOnly.matcher(s);
-				if (linkMatcher.find()) {
-					childLink = linkMatcher.group();
+			Document doc = Jsoup.parse(page.toString(), stringUrl);
 
-					// If it actually is a website
-					if (isValid(childLink)) {
-						childLink = makeAbsolute(childLink);
-						// Check to see if there's already a node for the link
-						INodeLink node = findNodeLink(childLink);
-						if (node != null) {
-							if (!seenBeforeInThisSite(childLink)) {
-								children.add(childLink);
-								//System.out.println(childLink);
-								continue;
-							}
-						}
-						// If we haven't seen this link in the site before
+			// Get links to other websites
+			Elements links = doc.select("a");
+			for (Element link : links) {
+				childLink = link.absUrl("href");
+				// If it actually is a website
+				if (isValid(childLink)) {
+					// childLink = makeAbsolute(childLink);
+					// Check to see if there's already a node for the link
+					INodeLink node = findNodeLink(childLink);
+					if (node != null) {
 						if (!seenBeforeInThisSite(childLink)) {
-							// If we have reached our target amount of nodes, stop
-							if (counter.reachedTarget()) {
-								break;
-							}
-							// Otherwise, add new node for link
-							child = new NodeLink(childLink, counter, existing);
 							children.add(childLink);
-							needToBeExplored.add(child);
-							existing.put(childLink, child);
-							//System.out.println(childLink);
+							// System.out.println(childLink);
+							continue;
 						}
-
 					}
+					// If we haven't seen this link in the site before
+					if (!seenBeforeInThisSite(childLink)) {
+						// If we have reached our target amount of nodes, stop
+						if (counter.reachedTarget()) {
+							break;
+						}
+						// Otherwise, add new node for link
+						child = new NodeLink(childLink, counter, existing);
+						children.add(childLink);
+						needToBeExplored.add(child);
+						existing.put(childLink, child);
+						// System.out.println(childLink);
+					}
+
 				}
 			}
 
 			bis.close();
+		} catch (FileNotFoundException e) {
+			// System.out.println("Error when reading from link " + link.toString() + ":" +
+			// e.getMessage());
+			e.printStackTrace();
+			counter.increase400();
+		} catch (SSLHandshakeException e) {
+			// System.out.println("Error when reading from link " + link.toString() + ":" +
+			// e.getMessage());
+			e.printStackTrace();
+			counter.increase400();
 		} catch (IOException e) {
 			// System.out.println("Error when reading from link " + link.toString() + ":" +
 			// e.getMessage());

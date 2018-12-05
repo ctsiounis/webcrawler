@@ -1,6 +1,7 @@
 package ca.uwo.webCrawler.nodes;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -10,8 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import javax.net.ssl.SSLHandshakeException;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import ca.uwo.tools.Counter;
 import ca.uwo.tools.UrlChecker;
@@ -24,6 +30,7 @@ public class ParallelNodeLink implements INodeLink {
 	Counter counter;
 	UrlChecker checker;
 	HttpURLConnection urlConnection;
+	
 
 	public ParallelNodeLink(String url, Counter counter, UrlChecker checker) {
 		try {
@@ -37,6 +44,7 @@ public class ParallelNodeLink implements INodeLink {
 			stringUrl = url;
 			this.url = new URL(url);
 			urlConnection = (HttpURLConnection) this.url.openConnection();
+			
 			this.counter = counter;
 			this.checker = checker;
 		} catch (Exception e) {
@@ -88,28 +96,38 @@ public class ParallelNodeLink implements INodeLink {
 			urlConnection.setRequestMethod("GET");
 			urlConnection.connect();
 			int response = urlConnection.getResponseCode();
-			// System.out.println(response);
+			//System.out.println(response);
 
 			// Create stream to get data from website
 			bis = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
 
 			String s, childLink;
-			Pattern linkOnly;
-			Matcher linkMatcher;
 			ParallelNodeLink child;
-			boolean added;
 
-			// TODO Check for 400 response codes
+			// Check for response code and log
+			if ((response / 100) == 1) {
+				counter.increase100();
+			} else if ((response / 100) == 2) {
+				counter.increase200();
+			} else if ((response / 100) == 3) {
+				counter.increase300();
+			} else if ((response / 100) == 4) {
+				counter.increase400();
+				return needToBeExplored;
+			} else {
+				counter.increase500();
+				return needToBeExplored;
+			}
 
 			//System.out.println("Running: " + stringUrl);
 
 			// Check to see if we have a redirection response
 			// If we do find the redirection from headers
-			if ((response / 3) == 100) {
+			if ((response / 100) == 3) {
 				//System.out.println("Redirection needed!!!");
 				Map<String, List<String>> headers = urlConnection.getHeaderFields();
 				childLink = checker.makeAbsolute(headers.get("Location").get(0), stringUrl);
-
+				//childLink = response2.parse().absUrl("Location");
 				// If we haven't reached the target number of nodes, add the redirection node
 				if (!counter.reachedTarget()) {
 					children.add(childLink);
@@ -126,44 +144,55 @@ public class ParallelNodeLink implements INodeLink {
 						children.add(childLink);
 				}
 				return needToBeExplored;
-			} else { // If not create regular expression to find links
-				linkOnly = Pattern.compile("(?<=<a\\b[^>]{0,30}href=\")([^>\\s]*?)(?=\".+>)");
 			}
-
-			// Start reading from the website
+			
+			StringBuilder page = new StringBuilder();
+			// Read the website
 			while ((s = bis.readLine()) != null) {
 				// System.out.println(s);
+				page.append(s+"\n");
+			}
+			
+			Document doc = Jsoup.parse(page.toString(), stringUrl);
+			// Search for links to other websites
+			Elements links = doc.select("a");
+			for (Element link : links) {
+			    childLink = link.absUrl("href");
+			    
+			    // If it actually is a website
+				if (checker.isValid(childLink)) {
+					//childLink = checker.makeAbsolute(childLink, stringUrl);
 
-				// Find references to other websites
-				linkMatcher = linkOnly.matcher(s);
-				if (linkMatcher.find()) {
-					childLink = linkMatcher.group();
-
-					// If it actually is a website
-					if (checker.isValid(childLink)) {
-						childLink = checker.makeAbsolute(childLink, stringUrl);
-
-						if (!seenBeforeInThisSite(childLink)) {
-							if (!counter.reachedTarget()) {
-								children.add(childLink);
-								child = new ParallelNodeLink(childLink, counter, checker);
-								if (checker.addNodeLink(childLink, child) == null) {
-									//System.out.println("Added node!!");
-									needToBeExplored.add(child);
-								} else {
-									counter.reduce();
-								}
-								//System.out.println(childLink);
+					if (!seenBeforeInThisSite(childLink)) {
+						if (!counter.reachedTarget()) {
+							children.add(childLink);
+							child = new ParallelNodeLink(childLink, counter, checker);
+							if (checker.addNodeLink(childLink, child) == null) {
+								//System.out.println("Added node!!");
+								needToBeExplored.add(child);
 							} else {
-								if (checker.find(childLink) != null)
-									children.add(childLink);
+								counter.reduce();
 							}
+							//System.out.println(childLink);
+						} else {
+							if (checker.find(childLink) != null)
+								children.add(childLink);
 						}
 					}
 				}
 			}
 
 			bis.close();
+		} catch (FileNotFoundException e) {
+			// System.out.println("Error when reading from link " + link.toString() + ":" +
+			// e.getMessage());
+			e.printStackTrace();
+			counter.increase400();
+		} catch (SSLHandshakeException e) {
+			// System.out.println("Error when reading from link " + link.toString() + ":" +
+			// e.getMessage());
+			e.printStackTrace();
+			counter.increase400();
 		} catch (IOException e) {
 			// System.out.println("Error when reading from link " + link.toString() + ":" +
 			// e.getMessage());

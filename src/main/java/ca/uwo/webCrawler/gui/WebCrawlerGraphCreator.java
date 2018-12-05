@@ -17,7 +17,6 @@ import com.mxgraph.view.mxGraph;
 import ca.uwo.webCrawler.nodes.INodeLink;
 
 public class WebCrawlerGraphCreator {
-	private static final long serialVersionUID = 1L;
 	final mxGraph graph = new mxGraph();
 	Object defaultParent = graph.getDefaultParent();
 	Map<String, Object> graphNodes = new HashMap<String, Object>();
@@ -26,19 +25,23 @@ public class WebCrawlerGraphCreator {
 	Map<String, Integer> outgoing = new HashMap<String, Integer>();
 	double avgDistance, diameter;
 
-	public WebCrawlerGraphCreator(Map<String, INodeLink> existing) throws HeadlessException {
+	public WebCrawlerGraphCreator(Map<String, INodeLink> existing, boolean graphVisual) throws HeadlessException {
 		graph.setCellsEditable(false);
 		graph.setAllowDanglingEdges(false);
 
 		createVertices(existing);
 		createEdges(existing);
 
-		mxHierarchicalLayout layout = new mxHierarchicalLayout(graph);
-		layout.setInterHierarchySpacing(500);
-		layout.setInterRankCellSpacing(200);
-		layout.execute(defaultParent);
-		graphComponent = new mxGraphComponent(graph);
-		
+		if (graphVisual) {
+			mxHierarchicalLayout layout = new mxHierarchicalLayout(graph);
+			layout.setInterHierarchySpacing(500);
+			layout.setInterRankCellSpacing(200);
+			layout.execute(defaultParent);
+			graphComponent = new mxGraphComponent(graph);
+		} else {
+			graphComponent = null;
+		}
+
 		findAverageDistanceAndDiameter();
 	}
 
@@ -92,7 +95,11 @@ public class WebCrawlerGraphCreator {
 			sum += entry.getValue();
 			count++;
 		}
-
+		
+		if (count == 0) {
+			return 0;
+		}
+		
 		return sum / count;
 	}
 
@@ -103,6 +110,10 @@ public class WebCrawlerGraphCreator {
 		for (Map.Entry<String, Integer> entry : outgoing.entrySet()) {
 			sum += entry.getValue();
 			count++;
+		}
+		
+		if (count == 0) {
+			return 0;
 		}
 
 		return sum / count;
@@ -119,24 +130,22 @@ public class WebCrawlerGraphCreator {
 	private void findAverageDistanceAndDiameter() {
 		mxAnalysisGraph aGraph = new mxAnalysisGraph();
 		aGraph.setGraph(graph);
-		mxGraphGenerator generator = new mxGraphGenerator(
-				mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
-				new mxConstCostFunction(1)
-		);
+		mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
+				new mxConstCostFunction(1));
 		aGraph.setGenerator(generator);
-		
+
 		double max = 0.0;
 		double sum = 0.0;
 		int count = 0;
-		
+
 		try {
 			ArrayList<Object[][]> frw = mxTraversal.floydRoyWarshall(aGraph);
 			Object[][] distanceMap = frw.get(0);
 			for (int i = 0; i < distanceMap.length; i++) {
 				for (int j = 0; j < distanceMap[i].length; j++) {
 					double value = Double.parseDouble(distanceMap[i][j].toString());
-					if(value != 0.0) {
-						sum+=value;
+					if (value != 0.0) {
+						sum += value;
 						count++;
 						if (value > max)
 							max = value;
@@ -144,10 +153,13 @@ public class WebCrawlerGraphCreator {
 				}
 			}
 			
-			avgDistance = sum/count;
+			if (count == 0) {
+				avgDistance = 0.0;
+			}
+
+			avgDistance = sum / count;
 			diameter = max;
 		} catch (StructuralException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

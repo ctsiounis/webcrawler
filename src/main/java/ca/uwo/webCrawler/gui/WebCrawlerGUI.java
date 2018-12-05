@@ -2,8 +2,6 @@ package ca.uwo.webCrawler.gui;
 
 import java.awt.BorderLayout;
 import java.awt.HeadlessException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
@@ -15,6 +13,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -27,10 +26,8 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.text.NumberFormatter;
 
-import com.sun.xml.internal.ws.util.NoCloseOutputStream;
-
 import ca.uwo.parallelWebCrawler.ParallelWebCrawler;
-import ca.uwo.tools.UrlChecker;
+import ca.uwo.tools.Counter;
 import ca.uwo.webCrawler.WebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
 
@@ -45,6 +42,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 	JPanel graphPanel;
 	JLabel status;
 	JTextArea stats;
+	JCheckBox graphVisual;
 	
 
 	public static void main(String[] args) {
@@ -67,13 +65,14 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		JPanel controlPanel = new JPanel();
 		
 		JLabel nodesLabel = new JLabel("Insert number of nodes to check: ");
-		NumberFormat format = NumberFormat.getInstance();
+		NumberFormat format = NumberFormat.getIntegerInstance();
+		format.setGroupingUsed(false);
 	    NumberFormatter formatter = new NumberFormatter(format);
 	    formatter.setValueClass(Integer.class);
 	    formatter.setMinimum(0);
 	    formatter.setMaximum(Integer.MAX_VALUE);
 	    formatter.setAllowsInvalid(false);
-	    formatter.setCommitsOnValidEdit(true);
+	    formatter.setCommitsOnValidEdit(false);
 	    numberOfNodes = new JFormattedTextField(formatter);
 	    numberOfNodes.setColumns(5);
 	    
@@ -115,13 +114,18 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		JPanel statsPanel = new JPanel();
 		JScrollPane statsScrollPanel= new JScrollPane(statsPanel);
 		
-		stats = new JTextArea(100, 25);
+		stats = new JTextArea(100, 28);
 		stats.setEditable(false);
 		statsPanel.add(stats);
+		
+		JPanel optionsPanel = new JPanel();
+		graphVisual = new JCheckBox("Visualize web graph");
+		optionsPanel.add(graphVisual);
 		
 		getContentPane().add(graphScrollPane, BorderLayout.CENTER);
 		getContentPane().add(controlPanel, BorderLayout.PAGE_START);
 		getContentPane().add(statsScrollPanel, BorderLayout.EAST);
+		getContentPane().add(optionsPanel, BorderLayout.SOUTH);
 	}
 
 	private void pressed(){
@@ -131,48 +135,67 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 	private void released() {
 		String websiteURL = website.getText();
 		int nodesToExplore = Integer.parseInt(numberOfNodes.getText());
-		
+		stats.append("***********************************************************\n");
+		stats.append("Website: " + websiteURL + "(" + nodesToExplore + " nodes)");
 		//INodeLink root = null;
 		Map<String, INodeLink> nodes = null;
+		Counter counter = null;
 		
 		if (simpleCrawler.isSelected()) {
+			stats.append(" - Simple Web Crawler\n");
+			stats.append("***********************************************************\n");
 			long startTime = System.nanoTime();
 			
 			WebCrawler crawler = new WebCrawler();
 			crawler.crawl(websiteURL, nodesToExplore);
 			//root = crawler.getRoot();
 			nodes = crawler.getExisting();
+			counter = crawler.getCounter();
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
-			System.out.println("Simple Crawler time: " + duration);
+			stats.append("Running time: " + duration + "\n");
+			//System.out.println("Simple Crawler time: " + duration);
 		} else if (parallelCrawler.isSelected()) {
+			stats.append(" - Parallel Web Crawler\n");
+			stats.append("***********************************************************\n");
 			long startTime = System.nanoTime();
 			
 			ParallelWebCrawler crawler = new ParallelWebCrawler();
 			crawler.crawl(websiteURL, nodesToExplore);
 			//root = crawler.getRoot();
 			nodes = crawler.getExisting();
+			counter = crawler.getCounter();
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
-			System.out.println("Parallel Crawler time: " + duration);
+			stats.append("Running time: " + duration + "\n");
+			//System.out.println("Parallel Crawler time: " + duration);
 		}
-		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes);
+		
+		boolean visualize = graphVisual.isSelected();
+		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes, visualize);
 		
 		graphPanel.removeAll();
-		graphPanel.add(graphCreator.getGraphComponent());
+		if (visualize)
+			graphPanel.add(graphCreator.getGraphComponent());
 		
 		int avgIncoming = graphCreator.getAverageIncoming();
 		int avgOutgoing = graphCreator.getAverageOutgoing();
 		double avgDistance = graphCreator.getAvgDistance();
 		double diameter = graphCreator.getDiameter();
-		stats.setText("");
+		//stats.setText("");
 		stats.append("Average number of incoming edges: " + avgIncoming + "\n");
 		stats.append("Average number of outgoing edges: " + avgOutgoing + "\n");
 		stats.append("Average distance between vertices: " + String.format("%.2f", avgDistance) + "\n");
 		stats.append("Graph's diameter: " + String.format("%.2f", diameter) + "\n");
-
+		stats.append("Distribution of responses:\n");
+		stats.append("  100(Informational):\t" + counter.get100() + "\n");
+		stats.append("  200(Successful):\t" + counter.get200() + "\n");
+		stats.append("  300(Redirection):\t" + counter.get300() + "\n");
+		stats.append("  400(Client Error):\t" + counter.get400() + "\n");
+		stats.append("  500(Server Error):\t" + counter.get500() + "\n");
+		stats.append("--------------------------------------------------------------------------\n");
 		revalidate();
 		repaint();
 		

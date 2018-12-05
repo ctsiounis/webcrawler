@@ -13,18 +13,19 @@ import ca.uwo.webCrawler.nodes.NodeLink;
 public class WebCrawler {
 	Map<String, INodeLink> existing = new HashMap<String, INodeLink>();
 	NodeLink root;
+	Counter counter;
 
 	public static void main(String[] args) {
-		String initialURL = "https://www.uwo.ca";
+		String initialURL = "http://www.uwo.ca";
 		WebCrawler crawler = new WebCrawler();
-		crawler.crawl(initialURL, 50);
+		crawler.crawl(initialURL, 10);
 
 	}
 
 	public void crawl(String initialURL, int numberOfNodes) {
 		List<INodeLink> nodesToVisit = new ArrayList<INodeLink>();
-		Counter counter = new SimpleCounter(numberOfNodes);
-
+		counter = new SimpleCounter(numberOfNodes);
+		counter.reachedTarget();
 		// Add root to hashmap of existing nodes
 		// and list of nodes that need visiting
 		root = new NodeLink(initialURL, counter, existing);
@@ -46,6 +47,9 @@ public class WebCrawler {
 	public NodeLink getRoot() {
 		return root;
 	}
-	
 
+	public Counter getCounter() {
+		return counter;
+	}
+	
 }
