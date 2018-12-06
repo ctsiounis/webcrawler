@@ -10,7 +10,7 @@ import ca.uwo.tools.SimpleCounter;
 import ca.uwo.webCrawler.nodes.INodeLink;
 import ca.uwo.webCrawler.nodes.NodeLink;
 
-public class WebCrawler {
+public class WebCrawler implements IWebCrawler{
 	Map<String, INodeLink> existing = new HashMap<String, INodeLink>();
 	NodeLink root;
 	Counter counter;

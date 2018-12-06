@@ -1,6 +1,7 @@
 package ca.uwo.webCrawler.gui;
 
 import java.awt.BorderLayout;
+import java.awt.Graphics;
 import java.awt.HeadlessException;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -8,6 +9,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.text.NumberFormat;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -26,8 +29,11 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.text.NumberFormatter;
 
+import com.mxgraph.swing.mxGraphComponent;
+
 import ca.uwo.parallelWebCrawler.ParallelWebCrawler;
 import ca.uwo.tools.Counter;
+import ca.uwo.webCrawler.IWebCrawler;
 import ca.uwo.webCrawler.WebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
 
@@ -141,16 +147,92 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		Map<String, INodeLink> nodes = null;
 		Counter counter = null;
 		
+		graphPanel.removeAll();
+		
+		IWebCrawler crawler = crawl(websiteURL, nodesToExplore);
+		
+		nodes = crawler.getExisting();
+		counter = crawler.getCounter();
+		
+		stats.append("Distribution of responses:\n");
+		stats.append("  100(Informational):\t" + counter.get100() + "\n");
+		stats.append("  200(Successful):\t" + counter.get200() + "\n");
+		stats.append("  300(Redirection):\t" + counter.get300() + "\n");
+		stats.append("  400(Client Error):\t" + counter.get400() + "\n");
+		stats.append("  500(Server Error):\t" + counter.get500() + "\n");
+		
+		boolean visualize = graphVisual.isSelected();
+		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes, visualize);
+		
+		int avgIncoming = graphCreator.getAverageIncoming();
+		int avgOutgoing = graphCreator.getAverageOutgoing();
+		
+		stats.append("Average number of incoming edges: " + avgIncoming + "\n");
+		stats.append("Average number of outgoing edges: " + avgOutgoing + "\n");
+		
+		Graphics g = getGraphics();
+		revalidate();
+		update(g);
+		
+		CompletableFuture<Void> analyzeGraph = CompletableFuture.runAsync(() -> graphCreator.findAverageDistanceAndDiameter());
+		boolean analysisDone = false;
+		CompletableFuture<mxGraphComponent> visualizeGraph = null;
+		boolean visualDone = false;
+		
+		if (visualize) {
+			visualizeGraph = CompletableFuture.supplyAsync(() -> graphCreator.getGraphComponent());
+		} 
+			
+		
+		
+		while ((!analysisDone) || (!visualDone)) {
+			if ((analyzeGraph.isDone()) && (analysisDone == false)) {
+				analysisDone = true;
+				double avgDistance = graphCreator.getAvgDistance();
+				double diameter = graphCreator.getDiameter();
+				
+				stats.append("Average distance between vertices: " + String.format("%.2f", avgDistance) + "\n");
+				stats.append("Graph's diameter: " + String.format("%.2f", diameter) + "\n");
+				stats.append("--------------------------------------------------------------------------\n");
+				
+				revalidate();
+				update(g);
+			}				
+			if (visualize) {
+				if ((visualizeGraph.isDone()) && (visualDone == false)) {
+					try {
+						visualDone = true;
+						
+						mxGraphComponent component = visualizeGraph.get();
+						graphPanel.add(component);
+						
+						revalidate();
+						update(g);
+					} catch (InterruptedException | ExecutionException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			} else {
+				visualDone = true;
+			}
+		}
+		
+		status.setText("Done!");
+		
+		revalidate();
+		repaint();	
+	}
+	
+	private IWebCrawler crawl(String initialURL, int numberOfNodes) {
+		IWebCrawler crawler = null;
 		if (simpleCrawler.isSelected()) {
 			stats.append(" - Simple Web Crawler\n");
 			stats.append("***********************************************************\n");
 			long startTime = System.nanoTime();
 			
-			WebCrawler crawler = new WebCrawler();
-			crawler.crawl(websiteURL, nodesToExplore);
-			//root = crawler.getRoot();
-			nodes = crawler.getExisting();
-			counter = crawler.getCounter();
+			crawler = new WebCrawler();
+			crawler.crawl(initialURL, numberOfNodes);
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
@@ -161,45 +243,19 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			stats.append("***********************************************************\n");
 			long startTime = System.nanoTime();
 			
-			ParallelWebCrawler crawler = new ParallelWebCrawler();
-			crawler.crawl(websiteURL, nodesToExplore);
-			//root = crawler.getRoot();
-			nodes = crawler.getExisting();
-			counter = crawler.getCounter();
+			crawler = new ParallelWebCrawler();
+			crawler.crawl(initialURL, numberOfNodes);
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
 			stats.append("Running time: " + duration + "\n");
 			//System.out.println("Parallel Crawler time: " + duration);
 		}
-		
-		boolean visualize = graphVisual.isSelected();
-		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes, visualize);
-		
-		graphPanel.removeAll();
-		if (visualize)
-			graphPanel.add(graphCreator.getGraphComponent());
-		
-		int avgIncoming = graphCreator.getAverageIncoming();
-		int avgOutgoing = graphCreator.getAverageOutgoing();
-		double avgDistance = graphCreator.getAvgDistance();
-		double diameter = graphCreator.getDiameter();
-		//stats.setText("");
-		stats.append("Average number of incoming edges: " + avgIncoming + "\n");
-		stats.append("Average number of outgoing edges: " + avgOutgoing + "\n");
-		stats.append("Average distance between vertices: " + String.format("%.2f", avgDistance) + "\n");
-		stats.append("Graph's diameter: " + String.format("%.2f", diameter) + "\n");
-		stats.append("Distribution of responses:\n");
-		stats.append("  100(Informational):\t" + counter.get100() + "\n");
-		stats.append("  200(Successful):\t" + counter.get200() + "\n");
-		stats.append("  300(Redirection):\t" + counter.get300() + "\n");
-		stats.append("  400(Client Error):\t" + counter.get400() + "\n");
-		stats.append("  500(Server Error):\t" + counter.get500() + "\n");
-		stats.append("--------------------------------------------------------------------------\n");
+		Graphics g = getGraphics();
 		revalidate();
-		repaint();
+		update(g);
 		
-		status.setText("Done!");
+		return crawler;
 	}
 	
 	@Override

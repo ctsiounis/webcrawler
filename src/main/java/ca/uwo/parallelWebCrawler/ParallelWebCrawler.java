@@ -5,14 +5,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import ca.uwo.tools.AtomicCounter;
 import ca.uwo.tools.Counter;
 import ca.uwo.tools.UrlChecker;
+import ca.uwo.webCrawler.IWebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
 import ca.uwo.webCrawler.nodes.ParallelNodeLink;
 
-public class ParallelWebCrawler {
+public class ParallelWebCrawler implements IWebCrawler{
 
 	UrlChecker checker = new UrlChecker();
 	Counter counter;
@@ -22,18 +25,20 @@ public class ParallelWebCrawler {
 	public static void main(String[] args) {
 		String initialURL = "http://www.uwo.ca";
 		ParallelWebCrawler crawler = new ParallelWebCrawler();
-		crawler.crawl(initialURL, 10);
+		crawler.crawl(initialURL, 100);
 
 	}
 
 	public void crawl(String initialURL, int numberOfNodes) {
+		ExecutorService executor = Executors.newFixedThreadPool(4);
+		
 		//List<ParallelNodeLink> nodesToVisit = new ArrayList<ParallelNodeLink>();
 		counter = new AtomicCounter(numberOfNodes);
 		counter.reachedTarget();
 
 		// Add root to hashmap of existing nodes
 		// and list of nodes that need visiting
-		root = new ParallelNodeLink(initialURL, counter, checker);
+		root = new ParallelNodeLink(initialURL, counter, checker, executor);
 		checker.addNodeLink(root.getStringUrl(), root);
 		try {
 			root.get().get();

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 
 import javax.net.ssl.SSLHandshakeException;
 
@@ -30,9 +31,11 @@ public class ParallelNodeLink implements INodeLink {
 	Counter counter;
 	UrlChecker checker;
 	HttpURLConnection urlConnection;
+	ExecutorService executor;
 	
 
-	public ParallelNodeLink(String url, Counter counter, UrlChecker checker) {
+	public ParallelNodeLink(String url, Counter counter, UrlChecker checker, ExecutorService executor) {
+		this.executor = executor;
 		try {
 			// TODO Check how it can be done for every node before initializing it
 			if (!url.startsWith("http")) {
@@ -83,7 +86,7 @@ public class ParallelNodeLink implements INodeLink {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-		}
+		}, executor
 		);
 		
 		return future;
@@ -131,7 +134,7 @@ public class ParallelNodeLink implements INodeLink {
 				// If we haven't reached the target number of nodes, add the redirection node
 				if (!counter.reachedTarget()) {
 					children.add(childLink);
-					child = new ParallelNodeLink(childLink, counter, checker);
+					child = new ParallelNodeLink(childLink, counter, checker, executor);
 					if (checker.addNodeLink(childLink, child) == null) {
 						//System.out.println("Added node!!");
 						needToBeExplored.add(child);
@@ -166,7 +169,7 @@ public class ParallelNodeLink implements INodeLink {
 					if (!seenBeforeInThisSite(childLink)) {
 						if (!counter.reachedTarget()) {
 							children.add(childLink);
-							child = new ParallelNodeLink(childLink, counter, checker);
+							child = new ParallelNodeLink(childLink, counter, checker, executor);
 							if (checker.addNodeLink(childLink, child) == null) {
 								//System.out.println("Added node!!");
 								needToBeExplored.add(child);

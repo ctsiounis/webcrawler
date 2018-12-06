@@ -20,32 +20,31 @@ public class WebCrawlerGraphCreator {
 	final mxGraph graph = new mxGraph();
 	Object defaultParent = graph.getDefaultParent();
 	Map<String, Object> graphNodes = new HashMap<String, Object>();
-	final mxGraphComponent graphComponent;
+	mxGraphComponent graphComponent = null;
 	Map<String, Integer> incoming = new HashMap<String, Integer>();
 	Map<String, Integer> outgoing = new HashMap<String, Integer>();
 	double avgDistance, diameter;
+	boolean visual;
 
 	public WebCrawlerGraphCreator(Map<String, INodeLink> existing, boolean graphVisual) throws HeadlessException {
+		visual = graphVisual;
 		graph.setCellsEditable(false);
 		graph.setAllowDanglingEdges(false);
 
 		createVertices(existing);
 		createEdges(existing);
-
-		if (graphVisual) {
-			mxHierarchicalLayout layout = new mxHierarchicalLayout(graph);
-			layout.setInterHierarchySpacing(500);
-			layout.setInterRankCellSpacing(200);
-			layout.execute(defaultParent);
-			graphComponent = new mxGraphComponent(graph);
-		} else {
-			graphComponent = null;
-		}
-
-		findAverageDistanceAndDiameter();
 	}
 
 	public mxGraphComponent getGraphComponent() {
+		if (graphComponent == null) {
+			if (visual) {
+				mxHierarchicalLayout layout = new mxHierarchicalLayout(graph);
+				layout.setInterHierarchySpacing(500);
+				layout.setInterRankCellSpacing(200);
+				layout.execute(defaultParent);
+				graphComponent = new mxGraphComponent(graph);
+			}
+		}
 		return graphComponent;
 	}
 
@@ -95,11 +94,11 @@ public class WebCrawlerGraphCreator {
 			sum += entry.getValue();
 			count++;
 		}
-		
+
 		if (count == 0) {
 			return 0;
 		}
-		
+
 		return sum / count;
 	}
 
@@ -111,7 +110,7 @@ public class WebCrawlerGraphCreator {
 			sum += entry.getValue();
 			count++;
 		}
-		
+
 		if (count == 0) {
 			return 0;
 		}
@@ -127,7 +126,7 @@ public class WebCrawlerGraphCreator {
 		return diameter;
 	}
 
-	private void findAverageDistanceAndDiameter() {
+	public void findAverageDistanceAndDiameter() {
 		mxAnalysisGraph aGraph = new mxAnalysisGraph();
 		aGraph.setGraph(graph);
 		mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
@@ -152,7 +151,7 @@ public class WebCrawlerGraphCreator {
 					}
 				}
 			}
-			
+
 			if (count == 0) {
 				avgDistance = 0.0;
 			}
