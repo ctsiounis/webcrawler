@@ -174,6 +174,10 @@ public class NodeLink implements INodeLink {
 			// System.out.println("Error when reading from link " + link.toString() + ":" +
 			// e.getMessage());
 			e.printStackTrace();
+		} catch (NullPointerException e) {
+			// System.out.println("Error when reading from link " + link.toString() + ":" +
+			// e.getMessage());
+			e.printStackTrace();
 		}
 		return needToBeExplored;
 	}

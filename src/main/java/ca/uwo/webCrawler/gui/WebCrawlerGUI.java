@@ -8,6 +8,7 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.text.NumberFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -33,6 +34,7 @@ import com.mxgraph.swing.mxGraphComponent;
 
 import ca.uwo.parallelWebCrawler.ParallelWebCrawler;
 import ca.uwo.tools.Counter;
+import ca.uwo.tools.SCCdetection;
 import ca.uwo.webCrawler.IWebCrawler;
 import ca.uwo.webCrawler.WebCrawler;
 import ca.uwo.webCrawler.nodes.INodeLink;
@@ -155,14 +157,15 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		counter = crawler.getCounter();
 		
 		stats.append("Distribution of responses:\n");
-		stats.append("  100(Informational):\t" + counter.get100() + "\n");
-		stats.append("  200(Successful):\t" + counter.get200() + "\n");
-		stats.append("  300(Redirection):\t" + counter.get300() + "\n");
-		stats.append("  400(Client Error):\t" + counter.get400() + "\n");
-		stats.append("  500(Server Error):\t" + counter.get500() + "\n");
+		stats.append("    100(Informational):\t" + counter.get100() + "\n");
+		stats.append("    200(Successful):\t" + counter.get200() + "\n");
+		stats.append("    300(Redirection):\t" + counter.get300() + "\n");
+		stats.append("    400(Client Error):\t" + counter.get400() + "\n");
+		stats.append("    500(Server Error):\t" + counter.get500() + "\n");
 		
 		boolean visualize = graphVisual.isSelected();
 		WebCrawlerGraphCreator graphCreator = new WebCrawlerGraphCreator(nodes, visualize);
+		SCCdetection sccDetector = new SCCdetection(nodes);
 		
 		int avgIncoming = graphCreator.getAverageIncoming();
 		int avgOutgoing = graphCreator.getAverageOutgoing();
@@ -174,6 +177,8 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 		revalidate();
 		update(g);
 		
+		CompletableFuture<Void> findSCC = CompletableFuture.runAsync(() -> sccDetector.findSCCs());
+		boolean findSCCdone = false;
 		CompletableFuture<Void> analyzeGraph = CompletableFuture.runAsync(() -> graphCreator.findAverageDistanceAndDiameter());
 		boolean analysisDone = false;
 		CompletableFuture<mxGraphComponent> visualizeGraph = null;
@@ -185,7 +190,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			
 		
 		
-		while ((!analysisDone) || (!visualDone)) {
+		while ((!analysisDone) || (!visualDone) || (!findSCCdone)) {
 			if ((analyzeGraph.isDone()) && (analysisDone == false)) {
 				analysisDone = true;
 				double avgDistance = graphCreator.getAvgDistance();
@@ -193,11 +198,21 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 				
 				stats.append("Average distance between vertices: " + String.format("%.2f", avgDistance) + "\n");
 				stats.append("Graph's diameter: " + String.format("%.2f", diameter) + "\n");
-				stats.append("--------------------------------------------------------------------------\n");
 				
 				revalidate();
 				update(g);
-			}				
+			}
+			if ((findSCC.isDone()) && (findSCCdone == false)) {
+				findSCCdone = true;
+				List<Integer> sccs = sccDetector.getSCC();
+				stats.append("Sizes of strongly connected components:\n");
+				for (int i = 0; i<sccs.size(); i++) {
+					stats.append("    " + i + ": " + sccs.get(i) + "\n");
+				}
+				
+				revalidate();
+				update(g);
+			}
 			if (visualize) {
 				if ((visualizeGraph.isDone()) && (visualDone == false)) {
 					try {
@@ -218,6 +233,8 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			}
 		}
 		
+		stats.append("--------------------------------------------------------------------------\n");
+		
 		status.setText("Done!");
 		
 		revalidate();
@@ -236,7 +253,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
-			stats.append("Running time: " + duration + "\n");
+			stats.append("Running time: " + (duration/1000000000) + "\n");
 			//System.out.println("Simple Crawler time: " + duration);
 		} else if (parallelCrawler.isSelected()) {
 			stats.append(" - Parallel Web Crawler\n");
@@ -248,7 +265,7 @@ public class WebCrawlerGUI extends JFrame implements MouseListener, KeyListener 
 			
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
-			stats.append("Running time: " + duration + "\n");
+			stats.append("Running time: " + (duration/1000000000) + "\n");
 			//System.out.println("Parallel Crawler time: " + duration);
 		}
 		Graphics g = getGraphics();
